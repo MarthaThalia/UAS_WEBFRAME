@@ -1,154 +1,277 @@
+import { useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
+import { register } from '../api/services';
 
 function Pengguna() {
+  const { user } = useAuth();
+  const { addToast } = useToast();
+
+  // Register form state
+  const [showRegister, setShowRegister] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role: 'petambak',
+  });
+  const [errors, setErrors] = useState({});
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = 'Nama wajib diisi';
+    if (!formData.email.trim()) newErrors.email = 'Email wajib diisi';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Format email tidak valid';
+    if (!formData.password) newErrors.password = 'Password wajib diisi';
+    else if (formData.password.length < 8) newErrors.password = 'Password minimal 8 karakter';
+    if (formData.password !== formData.password_confirmation)
+      newErrors.password_confirmation = 'Konfirmasi password tidak cocok';
+    if (!formData.role) newErrors.role = 'Role wajib dipilih';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setIsSubmitting(true);
+
+    try {
+      await register({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        password_confirmation: formData.password_confirmation,
+        role: formData.role,
+      });
+      addToast('Pengguna baru berhasil didaftarkan!', 'success');
+      setFormData({ name: '', email: '', password: '', password_confirmation: '', role: 'petambak' });
+      setShowRegister(false);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Gagal mendaftarkan pengguna.';
+      const fieldErrors = err.response?.data?.errors;
+      if (fieldErrors) {
+        const mapped = {};
+        Object.keys(fieldErrors).forEach((key) => {
+          mapped[key] = fieldErrors[key][0];
+        });
+        setErrors(mapped);
+      }
+      addToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '??';
+    return name.split(' ').map((w) => w[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const getRoleBadge = (role) => {
+    if (role === 'admin') {
+      return (
+        <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-xs flex items-center gap-1 w-max border border-primary/30">
+          <span className="material-symbols-outlined text-[12px]">security</span> Admin
+        </span>
+      );
+    }
+    return (
+      <span className="px-3 py-1 rounded-full bg-surface-variant text-on-surface-variant text-xs flex items-center gap-1 w-max border border-white/5">
+        <span className="material-symbols-outlined text-[12px]">engineering</span> Petambak
+      </span>
+    );
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-stack-lg">
-        {/* Page Header & Toolbar */}
+        {/* Page Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h2 className="font-headline-md text-headline-md text-on-surface">Manajemen Pengguna</h2>
             <p className="text-on-surface-variant mt-1">Kelola akses dan peran pengguna dalam sistem Bioflok Intelligence.</p>
           </div>
-          <button className="bg-primary-container text-on-primary-container font-headline-sm text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:brightness-110 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all">
-            <span className="material-symbols-outlined text-lg">add</span>
-            Tambah Pengguna Baru
+          <button
+            onClick={() => setShowRegister(!showRegister)}
+            className="bg-primary-container text-on-primary-container font-headline-sm text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:brightness-110 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all"
+          >
+            <span className="material-symbols-outlined text-lg">{showRegister ? 'close' : 'person_add'}</span>
+            {showRegister ? 'Tutup Form' : 'Tambah Pengguna Baru'}
           </button>
         </div>
 
-        {/* Data Table Container */}
-        <div className="glass-panel rounded-xl overflow-hidden flex flex-col border border-white/10">
-          <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="relative w-full sm:w-80">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
-              <input className="glass-input w-full pl-10 pr-4 py-2 rounded-lg text-sm font-body-md" placeholder="Cari pengguna..." type="text" />
+        {/* Current User Profile Card */}
+        <div className="glass-panel rounded-xl p-8 border border-primary/30 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-primary shadow-[0_0_10px_rgba(34,211,238,0.5)]"></div>
+          
+          <div className="flex items-center gap-3 mb-6">
+            <span className="material-symbols-outlined text-primary">person</span>
+            <h3 className="font-headline-sm text-headline-sm text-on-surface">Profil Anda</h3>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            {/* Avatar */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-24 h-24 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+                <span className="text-primary text-3xl font-bold">{getInitials(user?.name)}</span>
+              </div>
+              {getRoleBadge(user?.role)}
             </div>
-            <button className="bg-surface-variant border border-white/10 text-on-surface font-headline-sm text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-white/5 transition-all">
-              <span className="material-symbols-outlined text-lg">filter_list</span>
-              Filter
-            </button>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-white/10 font-label-caps text-label-caps text-on-surface-variant">
-                  <th className="p-4 w-12">NO</th>
-                  <th className="p-4">NAMA</th>
-                  <th className="p-4">EMAIL</th>
-                  <th className="p-4">PERAN</th>
-                  <th className="p-4">TANGGAL BERGABUNG</th>
-                  <th className="p-4">STATUS</th>
-                  <th className="p-4 text-center">AKSI</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-sm font-body-md">
-                <tr className="hover:bg-white/5 transition-colors">
-                  <td className="p-4 text-on-surface-variant">1</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">AU</div>
-                      <span className="font-semibold text-on-surface">Admin Utama</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">admin@bioflok.io</td>
-                  <td className="p-4">
-                    <span className="px-3 py-1 rounded-full bg-surface-variant text-on-surface-variant text-xs flex items-center gap-1 w-max border border-white/5">
-                      <span className="material-symbols-outlined text-[12px]">security</span> Admin
-                    </span>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">12 Okt 2023</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]"></div>
-                      <span className="text-xs text-[#10b981]">Aktif</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button className="text-on-surface-variant hover:text-primary transition-colors"><span className="material-symbols-outlined text-[20px]">edit</span></button>
-                      <button className="text-on-surface-variant hover:text-error transition-colors"><span className="material-symbols-outlined text-[20px]">delete</span></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr className="hover:bg-white/5 transition-colors">
-                  <td className="p-4 text-on-surface-variant">2</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-surface-variant text-on-surface flex items-center justify-center font-bold text-xs">OL</div>
-                      <span className="font-semibold text-on-surface">Operator Lapangan</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">operator1@bioflok.io</td>
-                  <td className="p-4">
-                    <span className="px-3 py-1 rounded-full bg-surface-variant text-on-surface-variant text-xs flex items-center gap-1 w-max border border-white/5">
-                      <span className="material-symbols-outlined text-[12px]">engineering</span> Operator
-                    </span>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">15 Okt 2023</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]"></div>
-                      <span className="text-xs text-[#10b981]">Aktif</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button className="text-on-surface-variant hover:text-primary transition-colors"><span className="material-symbols-outlined text-[20px]">edit</span></button>
-                      <button className="text-on-surface-variant hover:text-error transition-colors"><span className="material-symbols-outlined text-[20px]">delete</span></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr className="hover:bg-white/5 transition-colors">
-                  <td className="p-4 text-on-surface-variant">3</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-surface-variant text-on-surface flex items-center justify-center font-bold text-xs">RS</div>
-                      <span className="font-semibold text-on-surface">Riset Sensor</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">riset@bioflok.io</td>
-                  <td className="p-4">
-                    <span className="px-3 py-1 rounded-full bg-surface-variant text-on-surface-variant text-xs flex items-center gap-1 w-max border border-white/5">
-                      <span className="material-symbols-outlined text-[12px]">science</span> Analyst
-                    </span>
-                  </td>
-                  <td className="p-4 text-on-surface-variant">20 Nov 2023</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-surface-variant"></div>
-                      <span className="text-xs text-on-surface-variant">Nonaktif</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button className="text-on-surface-variant hover:text-primary transition-colors"><span className="material-symbols-outlined text-[20px]">edit</span></button>
-                      <button className="text-on-surface-variant hover:text-error transition-colors"><span className="material-symbols-outlined text-[20px]">delete</span></button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="border-t border-white/10 p-4 flex flex-col sm:flex-row justify-between items-center gap-4 bg-surface-container-low/50">
-            <span className="text-sm text-on-surface-variant">Menampilkan 1 - 3 dari 12 pengguna</span>
-            <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded border border-white/10 flex items-center justify-center text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors disabled:opacity-50" disabled>
-                <span className="material-symbols-outlined text-sm">chevron_left</span>
-              </button>
-              <button className="w-8 h-8 rounded bg-primary/20 border border-primary/50 text-primary flex items-center justify-center text-sm font-semibold">1</button>
-              <button className="w-8 h-8 rounded border border-white/10 flex items-center justify-center text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors text-sm">2</button>
-              <button className="w-8 h-8 rounded border border-white/10 flex items-center justify-center text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors text-sm">3</button>
-              <span className="text-on-surface-variant">...</span>
-              <button className="w-8 h-8 rounded border border-white/10 flex items-center justify-center text-on-surface-variant hover:bg-white/5 hover:text-primary transition-colors">
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
-              </button>
+            {/* Info */}
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-surface-container/50 rounded-lg p-4 border border-white/5">
+                <p className="font-label-caps text-xs text-on-surface-variant mb-1 uppercase">Nama Lengkap</p>
+                <p className="font-metric-value text-lg text-on-surface">{user?.name || '—'}</p>
+              </div>
+              <div className="bg-surface-container/50 rounded-lg p-4 border border-white/5">
+                <p className="font-label-caps text-xs text-on-surface-variant mb-1 uppercase">Email</p>
+                <p className="text-on-surface">{user?.email || '—'}</p>
+              </div>
+              <div className="bg-surface-container/50 rounded-lg p-4 border border-white/5">
+                <p className="font-label-caps text-xs text-on-surface-variant mb-1 uppercase">Role</p>
+                <p className="text-on-surface capitalize">{user?.role || '—'}</p>
+              </div>
+              <div className="bg-surface-container/50 rounded-lg p-4 border border-white/5">
+                <p className="font-label-caps text-xs text-on-surface-variant mb-1 uppercase">Bergabung Sejak</p>
+                <p className="text-on-surface">
+                  {user?.created_at
+                    ? new Date(user.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+                    : '—'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
+        {/* Register New User Form */}
+        {showRegister && (
+          <div className="glass-panel rounded-xl p-8 border border-white/10 animate-scale-in">
+            <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+                <span className="material-symbols-outlined text-primary">person_add</span>
+              </div>
+              <div>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface">Daftarkan Pengguna Baru</h3>
+                <p className="text-on-surface-variant text-sm">Buat akun baru untuk anggota tim.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Name */}
+                <div>
+                  <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2">NAMA LENGKAP *</label>
+                  <input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full glass-input rounded-lg p-3 font-body-md text-body-md text-on-surface"
+                    placeholder="Nama lengkap"
+                  />
+                  {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2">EMAIL *</label>
+                  <input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="w-full glass-input rounded-lg p-3 font-body-md text-body-md text-on-surface"
+                    placeholder="email@bioflok.id"
+                  />
+                  {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2">PASSWORD *</label>
+                  <input
+                    name="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="w-full glass-input rounded-lg p-3 font-body-md text-body-md text-on-surface"
+                    placeholder="Minimal 8 karakter"
+                  />
+                  {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2">KONFIRMASI PASSWORD *</label>
+                  <input
+                    name="password_confirmation"
+                    type="password"
+                    value={formData.password_confirmation}
+                    onChange={handleChange}
+                    className="w-full glass-input rounded-lg p-3 font-body-md text-body-md text-on-surface"
+                    placeholder="Ulangi password"
+                  />
+                  {errors.password_confirmation && <p className="text-red-400 text-xs mt-1">{errors.password_confirmation}</p>}
+                </div>
+              </div>
+
+              {/* Role */}
+              <div className="max-w-xs">
+                <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2">ROLE *</label>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleChange}
+                  className="w-full glass-input rounded-lg p-3 font-body-md text-body-md appearance-none"
+                >
+                  <option className="bg-surface text-on-surface" value="petambak">Petambak</option>
+                  <option className="bg-surface text-on-surface" value="admin">Admin</option>
+                </select>
+                {errors.role && <p className="text-red-400 text-xs mt-1">{errors.role}</p>}
+              </div>
+
+              {/* Submit */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRegister(false)}
+                  className="py-3 px-6 rounded-lg border border-white/10 text-on-surface-variant hover:bg-white/5 transition-all font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="py-3 px-8 rounded-lg btn-primary font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                      Mendaftarkan...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">person_add</span>
+                      Daftarkan Pengguna
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Footer */}
         <div className="flex flex-col sm:flex-row justify-between text-xs text-on-surface-variant mt-4">
           <p>© 2024 Bioflok Oceanic Intelligence. High-Density Aquaculture Systems.</p>
           <div className="flex gap-4 mt-2 sm:mt-0">

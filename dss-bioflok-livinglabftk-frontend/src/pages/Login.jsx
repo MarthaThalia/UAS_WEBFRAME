@@ -1,8 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
 
 function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const { addToast } = useToast();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
   useEffect(() => {
     const container = document.getElementById('bubbles-container');
     if (!container) return;
@@ -39,6 +49,27 @@ function Login() {
       if (container) container.innerHTML = '';
     }
   }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await login(email, password);
+      addToast('Login berhasil! Selamat datang.', 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        err.response?.data?.errors?.email?.[0] ||
+        'Login gagal. Periksa email dan password Anda.';
+      setError(msg);
+      addToast(msg, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row antialiased relative dark">
@@ -78,9 +109,17 @@ function Login() {
               <h3 className="font-headline-md text-headline-md text-on-surface">Masuk ke Sistem</h3>
               <p className="font-body-md text-body-md text-on-surface-variant mt-2">Otentikasi akses keamanan tinggi.</p>
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center gap-2 relative z-10 animate-scale-in">
+                <span className="material-symbols-outlined text-sm">error</span>
+                {error}
+              </div>
+            )}
             
             {/* Form */}
-            <form action="#" className="space-y-6 relative z-10" onSubmit={(e) => { e.preventDefault(); navigate('/dashboard'); }}>
+            <form className="space-y-6 relative z-10" onSubmit={handleSubmit}>
               {/* Email Field */}
               <div>
                 <label className="block font-label-caps text-label-caps text-on-surface-variant mb-2 ml-1" htmlFor="email">ALAMAT EMAIL</label>
@@ -88,7 +127,17 @@ function Login() {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <span className="material-symbols-outlined text-outline">mail</span>
                   </div>
-                  <input className="glass-input w-full pl-10 pr-4 py-3 rounded-lg font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-0" id="email" name="email" placeholder="operator@bioflok.id" required type="email"/>
+                  <input
+                    className="glass-input w-full pl-10 pr-4 py-3 rounded-lg font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-0"
+                    id="email"
+                    name="email"
+                    placeholder="operator@bioflok.id"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
               </div>
               
@@ -102,14 +151,37 @@ function Login() {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <span className="material-symbols-outlined text-outline">lock</span>
                   </div>
-                  <input className="glass-input w-full pl-10 pr-4 py-3 rounded-lg font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-0" id="password" name="password" placeholder="••••••••" required type="password"/>
+                  <input
+                    className="glass-input w-full pl-10 pr-4 py-3 rounded-lg font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-0"
+                    id="password"
+                    name="password"
+                    placeholder="••••••••"
+                    required
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
               </div>
               
               {/* Submit Button */}
-              <button className="btn-primary w-full py-3 rounded-lg font-headline-sm text-[18px] flex items-center justify-center gap-2 mt-8" type="submit">
-                <span>Masuk</span>
-                <span className="material-symbols-outlined text-[20px]">login</span>
+              <button
+                className="btn-primary w-full py-3 rounded-lg font-headline-sm text-[18px] flex items-center justify-center gap-2 mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                type="submit"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Masuk</span>
+                    <span className="material-symbols-outlined text-[20px]">login</span>
+                  </>
+                )}
               </button>
             </form>
             

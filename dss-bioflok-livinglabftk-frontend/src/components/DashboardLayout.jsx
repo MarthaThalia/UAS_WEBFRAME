@@ -1,20 +1,51 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from './Toast';
 
-const navItems = [
-  { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
-  { path: '/prediksi', icon: 'analytics', label: 'Prediksi' },
-  { path: '/riwayat', icon: 'history', label: 'Riwayat' },
-  { path: '/kolam', icon: 'tsunami', label: 'Kolam' },
-  { path: '/pengguna', icon: 'group', label: 'Pengguna' },
+const allNavItems = [
+  { path: '/dashboard', icon: 'dashboard', label: 'Dashboard', adminOnly: false },
+  { path: '/prediksi', icon: 'analytics', label: 'Prediksi', adminOnly: false },
+  { path: '/riwayat', icon: 'history', label: 'Riwayat', adminOnly: false },
+  { path: '/kolam', icon: 'tsunami', label: 'Kolam', adminOnly: true },
+  { path: '/pengguna', icon: 'group', label: 'Pengguna', adminOnly: true },
 ];
 
 function DashboardLayout({ children }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { addToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const isActive = (path) => location.pathname === path;
+
+  // Filter nav items based on user role
+  const navItems = allNavItems.filter(
+    (item) => !item.adminOnly || (user && user.role === 'admin')
+  );
+
+  // Get user initials for avatar
+  const getInitials = (name) => {
+    if (!name) return '??';
+    return name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      addToast('Logout berhasil.', 'success');
+      navigate('/login');
+    } catch {
+      navigate('/login');
+    }
+  };
 
   return (
     <div className="font-body-md text-on-surface min-h-screen flex flex-col md:flex-row dark">
@@ -53,7 +84,10 @@ function DashboardLayout({ children }) {
               <p className="text-xs text-on-surface-variant uppercase tracking-widest mt-1">Oceanic DSS v1.0</p>
             </div>
           </div>
-          <button className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold hover:brightness-110 hover:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all flex items-center justify-center gap-2">
+          <button
+            onClick={() => navigate('/prediksi')}
+            className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold hover:brightness-110 hover:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all flex items-center justify-center gap-2"
+          >
             <span className="material-symbols-outlined">add</span>
             <span>New Log Entry</span>
           </button>
@@ -95,10 +129,13 @@ function DashboardLayout({ children }) {
               </a>
             </li>
             <li>
-              <Link to="/login" className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-4 py-2">
+              <button
+                onClick={handleLogout}
+                className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-4 py-2 w-full text-left"
+              >
                 <span className="material-symbols-outlined">logout</span>
                 <span>Logout</span>
-              </Link>
+              </button>
             </li>
           </ul>
         </div>
@@ -160,10 +197,13 @@ function DashboardLayout({ children }) {
               </a>
             </li>
             <li>
-              <Link to="/login" onClick={() => setMobileSidebarOpen(false)} className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-4 py-2">
+              <button
+                onClick={() => { setMobileSidebarOpen(false); handleLogout(); }}
+                className="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-4 py-2 w-full text-left"
+              >
                 <span className="material-symbols-outlined">logout</span>
                 <span>Logout</span>
-              </Link>
+              </button>
             </li>
           </ul>
         </div>
@@ -196,8 +236,12 @@ function DashboardLayout({ children }) {
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full group-hover:animate-ping"></span>
             </button>
-            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden cursor-pointer hover:border-primary transition-colors">
-              <img alt="Researcher Profile Avatar" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCj34k5SqgYNZldqxfkjD5aDXjcHTXNxn2RHlWB79IHQaC3XDNUpXTwEYgQ_hdn7LCViy4EUTRbqNTR5hSr2I1hhnhg72YZc10BlqqPd8Uyh1CDcZ--lUYSxmoJOudu8frIOjGHtwD3oYPegeSaOH4afDsQ_ZZVvUGln6U5Mzrrq_BfcLgbcIqHoR6X6mO5pAN1xyjPboQ9mCClUhCZpfFWxofLKWztd6K633nXOKyCrIQB6gRAm9GfPWi8MP8UP5rK4_0TMn7-Pg"/>
+            {/* User avatar with initials */}
+            <div
+              className="w-10 h-10 rounded-full border border-primary/30 overflow-hidden cursor-pointer hover:border-primary transition-colors bg-primary/20 flex items-center justify-center"
+              title={user?.name || 'User'}
+            >
+              <span className="text-primary text-sm font-bold">{getInitials(user?.name)}</span>
             </div>
           </div>
         </header>
